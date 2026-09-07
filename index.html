@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#08090c" />
+    <meta name="description" content="루베를 위한 밤. 영상 없이, 소리만." />
+    <meta property="og:title" content="루베의 밤" />
+    <meta property="og:description" content="버튼을 켜면 유튜브 화면 없이 소리만 흘러요." />
+    <meta property="og:image" content="https://gamepple.github.io/Rube-night/og.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <title>루베의 밤</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app" id="app">
+      <div class="sky-root" aria-hidden="true">
+        <div class="sky-wash" id="sky-wash"></div>
+        <canvas class="sky-stars" id="stars"></canvas>
+        <div class="moon" id="moon">
+          <span class="moon-crater moon-crater-a"></span>
+          <span class="moon-crater moon-crater-b"></span>
+          <span class="moon-crater moon-crater-c"></span>
+        </div>
+        <div class="sky-vignette"></div>
+      </div>
+
+      <div class="yt-audio-host" aria-hidden="true">
+        <div id="yt-mount"></div>
+      </div>
+
+      <div id="night">
+        <header class="top-bar">
+          <p class="brand">루베의 밤</p>
+          <button type="button" class="icon-btn" id="open-settings" aria-label="소리 설정">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+        </header>
+
+        <div class="stage">
+          <div class="greeting">
+            <p class="eyebrow" id="eyebrow">오늘 밤</p>
+            <h1 class="night-title" id="night-title">잘 자, 루베</h1>
+            <p class="night-sub" id="night-sub">버튼을 켜면 영상 없이, 소리만 흘러요.</p>
+          </div>
+
+          <button type="button" class="power" id="power" aria-label="소리 켜기" aria-pressed="false">
+            <span class="power-halo"></span>
+            <span class="power-ring"></span>
+            <span class="power-core">
+              <svg class="power-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M12 2v10" />
+                <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+              </svg>
+            </span>
+          </button>
+
+          <div class="status">
+            <p class="timer" id="timer" hidden>
+              <span class="timer-label">잠든 시간</span>
+              <span class="timer-value" id="timer-value">00:00:00</span>
+            </p>
+            <p class="timer-placeholder" id="timer-placeholder">전원만 켜 두면 돼요</p>
+            <p class="player-error" id="player-error" hidden></p>
+          </div>
+
+          <button type="button" class="end-btn" id="end-btn" hidden>종료하기</button>
+          <div class="end-btn-slot" id="end-slot"></div>
+        </div>
+      </div>
+
+      <section class="morning" id="morning" hidden aria-live="polite">
+        <p class="eyebrow" id="morning-greeting">좋은 아침이에요</p>
+        <h1 class="morning-title">좋은 하루 보내, 루베</h1>
+        <p class="morning-date">
+          오늘은 <em id="weekday">월요일</em>
+          <span aria-hidden="true"> · </span>
+          <span id="date-label"></span>
+        </p>
+
+        <div class="morning-card" id="weather-card">
+          <p class="morning-muted">하늘을 들여다보는 중…</p>
+        </div>
+
+        <p class="sleep-summary" id="sleep-summary"></p>
+
+        <blockquote class="morning-quote">
+          <svg class="quote-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+            <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h3c0 3-2 4.5-4 5.5" />
+            <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h3c0 3-2 4.5-4 5.5" />
+          </svg>
+          <p id="quote"></p>
+        </blockquote>
+
+        <button type="button" class="back-to-night" id="back-to-night">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
+          </svg>
+          다시, 밤으로
+        </button>
+      </section>
+
+      <div class="settings-root" id="settings" hidden>
+        <button type="button" class="settings-backdrop" id="settings-backdrop" aria-label="설정 닫기"></button>
+        <div class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+          <div class="settings-head">
+            <h2 id="settings-title" class="settings-title">소리 설정</h2>
+            <button type="button" class="icon-btn" id="close-settings" aria-label="닫기">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6">
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </button>
+          </div>
+          <p class="settings-copy">잠들 때 들을 유튜브 주소를 넣어 두면, 화면 없이 소리만 흘러요.</p>
+          <form class="settings-form" id="settings-form">
+            <label class="field-label" for="video-url">유튜브 링크</label>
+            <input
+              id="video-url"
+              class="field-input"
+              placeholder="https://youtu.be/…"
+              autocomplete="off"
+              spellcheck="false"
+              inputmode="url"
+            />
+            <p class="field-error" id="url-error" hidden></p>
+            <label class="field-label" for="volume" id="volume-label">음량 80</label>
+            <input id="volume" class="field-range" type="range" min="0" max="100" value="80" />
+            <button type="submit" class="settings-save">저장하기</button>
+          </form>
+        </div>
+      </div>
+    </main>
+    <script src="./app.js" defer></script>
+  </body>
+</html>
