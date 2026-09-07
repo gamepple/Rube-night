@@ -3,6 +3,8 @@ const DEFAULT_VIDEO_ID = "-u98Ob6R8AU";
 const STORAGE_KEY = "rube-night-settings";
 const SEOUL = { lat: 37.5665, lon: 126.978, place: "서울" };
 const ID_RE = /^[\w-]{11}$/;
+const MAX_PLAYLIST = 20;
+const ENDED = 0;
 
 const QUOTES = [
   "천천히 일어나도, 하루는 너를 기다려 준다.",
@@ -52,6 +54,38 @@ function parseYouTubeId(input) {
   return null;
 }
 
+function toWatchUrl(id) {
+  return `https://youtu.be/${id}`;
+}
+
+function normalizePlaylist(urls) {
+  const seen = new Set();
+  const next = [];
+  for (const url of urls || []) {
+    const id = parseYouTubeId(url);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    next.push(toWatchUrl(id));
+    if (next.length >= MAX_PLAYLIST) break;
+  }
+  return next.length > 0 ? next : [DEFAULT_VIDEO_URL];
+}
+
+function nextIndex(length, current, mode) {
+  if (length <= 1) return 0;
+  const safeCurrent = ((current % length) + length) % length;
+  if (mode === "shuffle") {
+    let next = safeCurrent;
+    let guard = 0;
+    while (next === safeCurrent && guard < 24) {
+      next = Math.floor(Math.random() * length);
+      guard += 1;
+    }
+    return next;
+  }
+  return (safeCurrent + 1) % length;
+}
+
 function youtubeErrorMessage(code) {
   if (code === 2) return "영상 주소가 올바르지 않아요.";
   if (code === 100) return "영상을 찾을 수 없어요.";
@@ -62,20 +96,29 @@ function youtubeErrorMessage(code) {
 function loadSettings() {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    const videoUrl =
-      typeof parsed.videoUrl === "string" && parseYouTubeId(parsed.videoUrl)
-        ? parsed.videoUrl
-        : DEFAULT_VIDEO_URL;
-    const volume =
-      typeof parsed.volume === "number" ? Math.min(100, Math.max(0, parsed.volume)) : 80;
-    return { videoUrl, volume };
+    const fromLegacy = typeof parsed.videoUrl === "string" ? [parsed.videoUrl] : [];
+    const playlist = normalizePlaylist(
+      Array.isArray(parsed.playlist) && parsed.playlist.length > 0 ? parsed.playlist : fromLegacy,
+    );
+    return {
+      playlist,
+      playMode: parsed.playMode === "shuffle" ? "shuffle" : "sequence",
+      volume: typeof parsed.volume === "number" ? Math.min(100, Math.max(0, parsed.volume)) : 80,
+    };
   } catch {
-    return { videoUrl: DEFAULT_VIDEO_URL, volume: 80 };
+    return { playlist: [DEFAULT_VIDEO_URL], playMode: "sequence", volume: 80 };
   }
 }
 
-function saveSettings(videoUrl, volume) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ videoUrl, volume }));
+function saveSettings() {
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      playlist: state.playlist,
+      playMode: state.playMode,
+      volume: state.volume,
+    }),
+  );
 }
 
 function formatElapsedClock(ms) {
@@ -181,7 +224,9 @@ async function fetchWeather() {
 const initial = loadSettings();
 const state = {
   phase: "idle",
-  videoUrl: initial.videoUrl,
+  playlist: initial.playlist,
+  playMode: initial.playMode,
+  currentIndex: 0,
   volume: initial.volume,
   accumulatedMs: 0,
   startedAt: null,
@@ -189,9 +234,19 @@ const state = {
   playerError: null,
 };
 
+function currentUrl() {
+  return state.playlist[state.currentIndex] ?? DEFAULT_VIDEO_URL;
+}
+
+function currentId() {
+  return parseYouTubeId(currentUrl()) ?? DEFAULT_VIDEO_ID;
+}
+
 let player = null;
-let playerVideoId = null;
+let playerReady = false;
+let loadedId = null;
 let wakeLock = null;
+let lastEndedAt = 0;
 let timerRaf = 0;
 
 const el = {
@@ -214,6 +269,9 @@ const el = {
   volume: document.getElementById("volume"),
   volumeLabel: document.getElementById("volume-label"),
   urlError: document.getElementById("url-error"),
+  playlist: document.getElementById("playlist"),
+  modeSequence: document.getElementById("mode-sequence"),
+  modeShuffle: document.getElementById("mode-shuffle"),
   weatherCard: document.getElementById("weather-card"),
   greeting: document.getElementById("morning-greeting"),
   weekday: document.getElementById("weekday"),
@@ -250,6 +308,44 @@ function copyForPhase(phase) {
     sub: "버튼을 켜면 영상 없이, 소리만 흘러요.",
     power: "소리 켜기",
   };
+}
+
+function renderPlaylist() {
+  el.playlist.replaceChildren(
+    ...state.playlist.map((url, index) => {
+      const id = parseYouTubeId(url) ?? url;
+      const item = document.createElement("li");
+      item.className = index === state.currentIndex ? "playlist-item is-current" : "playlist-item";
+      const pick = document.createElement("button");
+      pick.type = "button";
+      pick.className = "playlist-pick";
+      pick.innerHTML = `<span class="playlist-index">${String(index + 1).padStart(2, "0")}</span><span class="playlist-url"></span>${
+        index === state.currentIndex ? '<span class="playlist-now">지금</span>' : ""
+      }`;
+      pick.querySelector(".playlist-url").textContent = id;
+      pick.addEventListener("click", () => {
+        if (state.currentIndex === index) return;
+        state.currentIndex = index;
+        state.playerError = null;
+        loadCurrentVideo();
+        renderPlaylist();
+        renderNight();
+      });
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "icon-btn playlist-remove";
+      remove.setAttribute("aria-label", `${id} 삭제`);
+      remove.disabled = state.playlist.length <= 1;
+      remove.textContent = "×";
+      remove.addEventListener("click", () => removeVideo(index));
+      item.append(pick, remove);
+      return item;
+    }),
+  );
+  el.modeSequence.classList.toggle("is-on", state.playMode === "sequence");
+  el.modeShuffle.classList.toggle("is-on", state.playMode === "shuffle");
+  el.modeSequence.setAttribute("aria-pressed", state.playMode === "sequence" ? "true" : "false");
+  el.modeShuffle.setAttribute("aria-pressed", state.playMode === "shuffle" ? "true" : "false");
 }
 
 function renderNight() {
@@ -322,11 +418,6 @@ function renderMorning() {
     });
 }
 
-function render() {
-  if (state.phase === "morning") renderMorning();
-  else renderNight();
-}
-
 function tickTimer() {
   if (state.phase === "playing" || state.phase === "paused") {
     el.timerValue.textContent = formatElapsedClock(elapsedMs());
@@ -385,7 +476,7 @@ function loadYouTubeApi() {
 }
 
 function applyPlayerPhase() {
-  if (!player) return;
+  if (!player || !playerReady) return;
   try {
     if (state.phase === "playing") {
       player.unMute();
@@ -402,33 +493,56 @@ function applyPlayerPhase() {
   }
 }
 
-async function setupPlayer() {
-  const videoId = parseYouTubeId(state.videoUrl) ?? DEFAULT_VIDEO_ID;
-  const mount = document.getElementById("yt-mount");
-  if (!mount) return;
-  if (player && playerVideoId === videoId) {
-    applyPlayerPhase();
+function loadCurrentVideo() {
+  if (!player || !playerReady) return;
+  const id = currentId();
+  if (loadedId === id) {
+    if (state.phase === "playing") applyPlayerPhase();
     return;
   }
-
+  loadedId = id;
   try {
-    player?.destroy();
+    if (state.phase === "playing") player.loadVideoById(id);
+    else player.cueVideoById(id);
   } catch {
-    /* already gone */
+    /* ignore */
   }
-  player = null;
-  playerVideoId = videoId;
-  mount.replaceChildren();
+}
+
+function advanceTrack() {
+  const upcoming = nextIndex(state.playlist.length, state.currentIndex, state.playMode);
+  if (upcoming === state.currentIndex) {
+    try {
+      player?.seekTo(0, true);
+      player?.playVideo();
+    } catch {
+      try {
+        player?.loadVideoById(currentId());
+      } catch {
+        /* ignore */
+      }
+    }
+    return;
+  }
+  state.currentIndex = upcoming;
+  state.playerError = null;
+  loadCurrentVideo();
+  renderPlaylist();
+}
+
+async function setupPlayer() {
+  const mount = document.getElementById("yt-mount");
+  if (!mount || player) return;
   const host = document.createElement("div");
   mount.appendChild(host);
+  const initialId = currentId();
 
   try {
     const YT = await loadYouTubeApi();
-    if (playerVideoId !== videoId) return;
     player = new YT.Player(host, {
       width: 8,
       height: 8,
-      videoId,
+      videoId: initialId,
       playerVars: {
         autoplay: 0,
         controls: 0,
@@ -437,17 +551,18 @@ async function setupPlayer() {
         modestbranding: 1,
         rel: 0,
         playsinline: 1,
-        loop: 1,
-        playlist: videoId,
         origin: window.location.origin,
       },
       events: {
         onReady: () => {
+          playerReady = true;
+          loadedId = initialId;
           state.playerError = null;
           try {
             player.unMute();
             player.setVolume(state.volume);
-            applyPlayerPhase();
+            if (currentId() !== initialId) loadCurrentVideo();
+            else applyPlayerPhase();
           } catch {
             /* ignore */
           }
@@ -456,16 +571,15 @@ async function setupPlayer() {
         onError: (event) => {
           state.playerError = youtubeErrorMessage(event.data);
           renderNight();
+          if (state.phase === "playing" && state.playlist.length > 1) advanceTrack();
         },
         onStateChange: (event) => {
-          if (event.data === 0) {
-            try {
-              player.seekTo(0, true);
-              if (state.phase === "playing") player.playVideo();
-            } catch {
-              /* ignore */
-            }
-          }
+          if (event.data !== ENDED) return;
+          if (state.phase !== "playing") return;
+          const now = Date.now();
+          if (now - lastEndedAt < 1000) return;
+          lastEndedAt = now;
+          advanceTrack();
         },
       },
     });
@@ -490,7 +604,6 @@ function togglePower() {
     releaseWakeLock();
   }
   renderNight();
-  setupPlayer();
   applyPlayerPhase();
 }
 
@@ -516,10 +629,11 @@ function returnToNight() {
 }
 
 function openSettings() {
-  el.videoUrl.value = state.videoUrl;
+  el.videoUrl.value = "";
   el.volume.value = String(state.volume);
   el.volumeLabel.textContent = `음량 ${state.volume}`;
   el.urlError.hidden = true;
+  renderPlaylist();
   el.settings.hidden = false;
   el.videoUrl.focus();
 }
@@ -528,13 +642,39 @@ function closeSettings() {
   el.settings.hidden = true;
 }
 
+function addVideo(raw) {
+  const id = parseYouTubeId(raw);
+  if (!id) return "유튜브 주소 또는 영상 ID를 넣어 주세요.";
+  if (state.playlist.some((item) => parseYouTubeId(item) === id)) {
+    return "이미 목록에 있는 영상이에요.";
+  }
+  if (state.playlist.length >= MAX_PLAYLIST) return "목록은 20개까지 넣을 수 있어요.";
+  state.playlist.push(toWatchUrl(id));
+  saveSettings();
+  renderPlaylist();
+  return null;
+}
+
+function removeVideo(index) {
+  if (state.playlist.length <= 1) return;
+  state.playlist.splice(index, 1);
+  if (index === state.currentIndex) {
+    state.currentIndex = Math.min(index, state.playlist.length - 1);
+    loadCurrentVideo();
+  } else if (index < state.currentIndex) {
+    state.currentIndex -= 1;
+  }
+  saveSettings();
+  renderPlaylist();
+  renderNight();
+}
+
 function startStars() {
   const canvas = document.getElementById("stars");
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let stars = [];
-  let raf = 0;
   let running = true;
 
   function resize() {
@@ -571,11 +711,11 @@ function startStars() {
       ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
       ctx.fill();
     }
-    raf = window.requestAnimationFrame(draw);
+    window.requestAnimationFrame(draw);
   }
 
   resize();
-  raf = window.requestAnimationFrame(draw);
+  window.requestAnimationFrame(draw);
   window.addEventListener("resize", resize);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") requestWakeLock();
@@ -588,10 +728,20 @@ document.getElementById("back-to-night").addEventListener("click", returnToNight
 document.getElementById("open-settings").addEventListener("click", openSettings);
 document.getElementById("close-settings").addEventListener("click", closeSettings);
 document.getElementById("settings-backdrop").addEventListener("click", closeSettings);
+el.modeSequence.addEventListener("click", () => {
+  state.playMode = "sequence";
+  saveSettings();
+  renderPlaylist();
+});
+el.modeShuffle.addEventListener("click", () => {
+  state.playMode = "shuffle";
+  saveSettings();
+  renderPlaylist();
+});
 el.volume.addEventListener("input", () => {
   state.volume = Number(el.volume.value);
   el.volumeLabel.textContent = `음량 ${state.volume}`;
-  saveSettings(state.videoUrl, state.volume);
+  saveSettings();
   try {
     player?.setVolume(state.volume);
   } catch {
@@ -600,23 +750,21 @@ el.volume.addEventListener("input", () => {
 });
 document.getElementById("settings-form").addEventListener("submit", (event) => {
   event.preventDefault();
-  const draft = el.videoUrl.value;
-  if (!parseYouTubeId(draft)) {
+  const message = addVideo(el.videoUrl.value);
+  if (message) {
     el.urlError.hidden = false;
-    el.urlError.textContent = "유튜브 주소 또는 영상 ID를 넣어 주세요.";
+    el.urlError.textContent = message;
     return;
   }
-  state.videoUrl = draft.trim();
-  state.playerError = null;
-  saveSettings(state.videoUrl, state.volume);
-  closeSettings();
-  setupPlayer();
+  el.videoUrl.value = "";
+  el.urlError.hidden = true;
 });
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") closeSettings();
 });
 
 renderNight();
+renderPlaylist();
 startStars();
 tickTimer();
 setupPlayer();

@@ -122,21 +122,30 @@
               </svg>
             </button>
           </div>
-          <p class="settings-copy">잠들 때 들을 유튜브 주소를 넣어 두면, 화면 없이 소리만 흘러요.</p>
+          <p class="settings-copy">영상을 여러 개 넣어 두면 하나가 끝나도 다음 소리가 이어져요. 하나만 있으면 처음부터 다시 반복됩니다.</p>
+          <p class="field-label">재생 순서</p>
+          <div class="mode-switch" role="radiogroup" aria-label="재생 순서">
+            <button type="button" id="mode-sequence" class="is-on" aria-pressed="true">순차</button>
+            <button type="button" id="mode-shuffle" aria-pressed="false">랜덤</button>
+          </div>
+          <p class="field-label">소리 목록</p>
+          <ul class="playlist" id="playlist"></ul>
           <form class="settings-form" id="settings-form">
-            <label class="field-label" for="video-url">유튜브 링크</label>
-            <input
-              id="video-url"
-              class="field-input"
-              placeholder="https://youtu.be/…"
-              autocomplete="off"
-              spellcheck="false"
-              inputmode="url"
-            />
+            <label class="field-label" for="video-url">유튜브 링크 추가</label>
+            <div class="add-row">
+              <input
+                id="video-url"
+                class="field-input"
+                placeholder="https://youtu.be/…"
+                autocomplete="off"
+                spellcheck="false"
+                inputmode="url"
+              />
+              <button type="submit" class="add-btn" aria-label="목록에 추가">추가</button>
+            </div>
             <p class="field-error" id="url-error" hidden></p>
             <label class="field-label" for="volume" id="volume-label">음량 80</label>
             <input id="volume" class="field-range" type="range" min="0" max="100" value="80" />
-            <button type="submit" class="settings-save">저장하기</button>
           </form>
         </div>
       </div>
