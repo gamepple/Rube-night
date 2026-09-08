@@ -104,9 +104,10 @@ function loadSettings() {
       playlist,
       playMode: parsed.playMode === "shuffle" ? "shuffle" : "sequence",
       volume: typeof parsed.volume === "number" ? Math.min(100, Math.max(0, parsed.volume)) : 80,
+      stayAwake: parsed.stayAwake !== false,
     };
   } catch {
-    return { playlist: [DEFAULT_VIDEO_URL], playMode: "sequence", volume: 80 };
+    return { playlist: [DEFAULT_VIDEO_URL], playMode: "sequence", volume: 80, stayAwake: true };
   }
 }
 
@@ -117,6 +118,7 @@ function saveSettings() {
       playlist: state.playlist,
       playMode: state.playMode,
       volume: state.volume,
+      stayAwake: state.stayAwake,
     }),
   );
 }
@@ -228,6 +230,7 @@ const state = {
   playMode: initial.playMode,
   currentIndex: 0,
   volume: initial.volume,
+  stayAwake: initial.stayAwake,
   accumulatedMs: 0,
   startedAt: null,
   lastSessionMs: 0,
@@ -247,7 +250,8 @@ let playerReady = false;
 let loadedId = null;
 let wakeLock = null;
 let lastEndedAt = 0;
-let timerRaf = 0;
+let dimTimer = 0;
+let dimmed = false;
 
 const el = {
   app: document.getElementById("app"),
@@ -272,6 +276,10 @@ const el = {
   playlist: document.getElementById("playlist"),
   modeSequence: document.getElementById("mode-sequence"),
   modeShuffle: document.getElementById("mode-shuffle"),
+  modeAwake: document.getElementById("mode-awake"),
+  modeSleepOff: document.getElementById("mode-sleep-off"),
+  sleepVeil: document.getElementById("sleep-veil"),
+  skyWash: document.getElementById("sky-wash"),
   weatherCard: document.getElementById("weather-card"),
   greeting: document.getElementById("morning-greeting"),
   weekday: document.getElementById("weekday"),
@@ -290,7 +298,9 @@ function copyForPhase(phase) {
     return {
       eyebrow: "이제 괜찮아요",
       title: "잘 자요",
-      sub: "화면은 잊어도 돼요. 소리만 곁에 둘게요.",
+      sub: state.stayAwake
+        ? "잠시 뒤 화면만 어둡게 둘게요. 소리는 그대로예요."
+        : "화면은 잊어도 돼요. 소리만 곁에 둘게요.",
       power: "일시정지",
     };
   }
@@ -346,18 +356,28 @@ function renderPlaylist() {
   el.modeShuffle.classList.toggle("is-on", state.playMode === "shuffle");
   el.modeSequence.setAttribute("aria-pressed", state.playMode === "sequence" ? "true" : "false");
   el.modeShuffle.setAttribute("aria-pressed", state.playMode === "shuffle" ? "true" : "false");
+  if (el.modeAwake) {
+    el.modeAwake.classList.toggle("is-on", state.stayAwake);
+    el.modeSleepOff.classList.toggle("is-on", !state.stayAwake);
+    el.modeAwake.setAttribute("aria-pressed", state.stayAwake ? "true" : "false");
+    el.modeSleepOff.setAttribute("aria-pressed", state.stayAwake ? "false" : "true");
+  }
 }
 
 function renderNight() {
   const playing = state.phase === "playing";
   const paused = state.phase === "paused";
   const copy = copyForPhase(state.phase);
+  const sleeping = playing && dimmed && state.stayAwake;
 
   el.app.classList.toggle("is-dawn", false);
+  el.app.classList.toggle("is-sleeping", sleeping);
   el.night.hidden = false;
   el.morning.hidden = true;
-  el.moon.classList.toggle("is-lit", playing);
+  el.moon.classList.toggle("is-lit", playing && !sleeping);
   el.moon.classList.toggle("is-dawn", false);
+  el.moon.classList.toggle("is-still", playing || paused);
+  el.skyWash?.classList.toggle("is-still", playing || paused);
   el.power.classList.toggle("is-on", playing);
   el.power.classList.toggle("is-paused", paused);
   el.power.setAttribute("aria-pressed", playing ? "true" : "false");
@@ -365,6 +385,7 @@ function renderNight() {
   el.eyebrow.textContent = copy.eyebrow;
   el.title.textContent = copy.title;
   el.sub.textContent = copy.sub;
+  if (el.sleepVeil) el.sleepVeil.hidden = !sleeping;
 
   if (playing || paused) {
     el.timer.hidden = false;
@@ -422,11 +443,49 @@ function tickTimer() {
   if (state.phase === "playing" || state.phase === "paused") {
     el.timerValue.textContent = formatElapsedClock(elapsedMs());
   }
-  timerRaf = window.requestAnimationFrame(tickTimer);
+}
+
+function scheduleDim() {
+  window.clearTimeout(dimTimer);
+  if (state.phase !== "playing" || !state.stayAwake || !el.settings.hidden) {
+    dimmed = false;
+    renderNight();
+    return;
+  }
+  dimTimer = window.setTimeout(() => {
+    dimmed = true;
+    renderNight();
+  }, 4000);
+}
+
+function syncMediaSession() {
+  if (!("mediaSession" in navigator)) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: "루베의 밤",
+      artist: "소리만 곁에",
+    });
+    navigator.mediaSession.playbackState =
+      state.phase === "playing" ? "playing" : state.phase === "paused" ? "paused" : "none";
+  } catch {
+    /* ignore */
+  }
+}
+
+function preferTiny() {
+  try {
+    player?.setPlaybackQuality?.("tiny");
+  } catch {
+    try {
+      player?.setPlaybackQuality?.("small");
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 async function requestWakeLock() {
-  if (state.phase !== "playing" || !("wakeLock" in navigator)) return;
+  if (state.phase !== "playing" || !state.stayAwake || !("wakeLock" in navigator)) return;
   try {
     wakeLock = await navigator.wakeLock.request("screen");
     wakeLock.addEventListener("release", () => {
@@ -481,6 +540,7 @@ function applyPlayerPhase() {
     if (state.phase === "playing") {
       player.unMute();
       player.setVolume(state.volume);
+      preferTiny();
       player.playVideo();
     } else if (state.phase === "paused") {
       player.pauseVideo();
@@ -551,6 +611,9 @@ async function setupPlayer() {
         modestbranding: 1,
         rel: 0,
         playsinline: 1,
+        iv_load_policy: 3,
+        cc_load_policy: 0,
+        vq: "tiny",
         origin: window.location.origin,
       },
       events: {
@@ -561,6 +624,7 @@ async function setupPlayer() {
           try {
             player.unMute();
             player.setVolume(state.volume);
+            preferTiny();
             if (currentId() !== initialId) loadCurrentVideo();
             else applyPlayerPhase();
           } catch {
@@ -574,6 +638,7 @@ async function setupPlayer() {
           if (state.phase === "playing" && state.playlist.length > 1) advanceTrack();
         },
         onStateChange: (event) => {
+          if (event.data === 1) preferTiny();
           if (event.data !== ENDED) return;
           if (state.phase !== "playing") return;
           const now = Date.now();
@@ -596,12 +661,17 @@ function togglePower() {
     state.startedAt = Date.now();
     state.playerError = null;
     requestWakeLock();
+    syncMediaSession();
+    scheduleDim();
   } else {
     const extra = state.startedAt ? Date.now() - state.startedAt : 0;
     state.phase = "paused";
     state.startedAt = null;
     state.accumulatedMs += extra;
     releaseWakeLock();
+    dimmed = false;
+    window.clearTimeout(dimTimer);
+    syncMediaSession();
   }
   renderNight();
   applyPlayerPhase();
@@ -613,7 +683,10 @@ function endSession() {
   state.phase = "morning";
   state.startedAt = null;
   state.accumulatedMs = 0;
+  dimmed = false;
+  window.clearTimeout(dimTimer);
   releaseWakeLock();
+  syncMediaSession();
   applyPlayerPhase();
   renderMorning();
 }
@@ -633,13 +706,17 @@ function openSettings() {
   el.volume.value = String(state.volume);
   el.volumeLabel.textContent = `음량 ${state.volume}`;
   el.urlError.hidden = true;
+  dimmed = false;
+  window.clearTimeout(dimTimer);
   renderPlaylist();
+  renderNight();
   el.settings.hidden = false;
   el.videoUrl.focus();
 }
 
 function closeSettings() {
   el.settings.hidden = true;
+  scheduleDim();
 }
 
 function addVideo(raw) {
@@ -673,12 +750,28 @@ function startStars() {
   const canvas = document.getElementById("stars");
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let stars = [];
-  let running = true;
+  let raf = 0;
+
+  function paint(t, still) {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    ctx.clearRect(0, 0, w, h);
+    const dawnFade = state.phase === "morning" ? 0.18 : still ? 0.45 : 1;
+    for (const star of stars) {
+      const twinkle = reduceMotion || still ? 0 : Math.sin(t * 0.001 * star.speed + star.phase);
+      const alpha = Math.max(0.08, star.base + twinkle * 0.28) * dawnFade;
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(236, 234, 228, ${alpha})`;
+      ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 
   function resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const still = state.phase === "playing" || state.phase === "paused";
+    const dpr = still ? 1 : Math.min(window.devicePixelRatio || 1, 2);
     const w = window.innerWidth;
     const h = window.innerHeight;
     canvas.width = Math.floor(w * dpr);
@@ -686,7 +779,7 @@ function startStars() {
     canvas.style.width = `${w}px`;
     canvas.style.height = `${h}px`;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const count = w < 480 ? 70 : w < 900 ? 110 : 150;
+    const count = still ? (w < 480 ? 36 : 56) : w < 480 ? 70 : w < 900 ? 110 : 150;
     stars = Array.from({ length: count }, () => ({
       x: Math.random() * w,
       y: Math.random() * h * 0.92,
@@ -695,31 +788,34 @@ function startStars() {
       speed: 0.35 + Math.random() * 1.1,
       phase: Math.random() * Math.PI * 2,
     }));
+    paint(0, still);
   }
 
   function draw(t) {
-    if (!running) return;
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    ctx.clearRect(0, 0, w, h);
-    const dawnFade = state.phase === "morning" ? 0.18 : 1;
-    for (const star of stars) {
-      const twinkle = reduce ? 0 : Math.sin(t * 0.001 * star.speed + star.phase);
-      const alpha = Math.max(0.08, star.base + twinkle * 0.28) * dawnFade;
-      ctx.beginPath();
-      ctx.fillStyle = `rgba(236, 234, 228, ${alpha})`;
-      ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
-      ctx.fill();
+    const still = state.phase === "playing" || state.phase === "paused" || state.phase === "morning";
+    if (still) {
+      paint(t, true);
+      return;
     }
-    window.requestAnimationFrame(draw);
+    paint(t, false);
+    raf = window.requestAnimationFrame(draw);
   }
 
   resize();
-  window.requestAnimationFrame(draw);
+  raf = window.requestAnimationFrame(draw);
   window.addEventListener("resize", resize);
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") requestWakeLock();
+    if (document.visibilityState === "visible") {
+      requestWakeLock();
+      if (state.phase === "playing") applyPlayerPhase();
+    }
   });
+  window.setInterval(() => {
+    if (state.phase === "idle") {
+      window.cancelAnimationFrame(raf);
+      raf = window.requestAnimationFrame(draw);
+    }
+  }, 4000);
 }
 
 el.power.addEventListener("click", togglePower);
@@ -737,6 +833,26 @@ el.modeShuffle.addEventListener("click", () => {
   state.playMode = "shuffle";
   saveSettings();
   renderPlaylist();
+});
+el.modeAwake?.addEventListener("click", () => {
+  state.stayAwake = true;
+  saveSettings();
+  renderPlaylist();
+  scheduleDim();
+});
+el.modeSleepOff?.addEventListener("click", () => {
+  state.stayAwake = false;
+  dimmed = false;
+  window.clearTimeout(dimTimer);
+  saveSettings();
+  releaseWakeLock();
+  renderPlaylist();
+  renderNight();
+});
+el.sleepVeil?.addEventListener("click", () => {
+  dimmed = false;
+  renderNight();
+  scheduleDim();
 });
 el.volume.addEventListener("input", () => {
   state.volume = Number(el.volume.value);
@@ -766,5 +882,17 @@ window.addEventListener("keydown", (event) => {
 renderNight();
 renderPlaylist();
 startStars();
-tickTimer();
+window.setInterval(tickTimer, 1000);
 setupPlayer();
+try {
+  if ("mediaSession" in navigator) {
+    navigator.mediaSession.setActionHandler("play", () => {
+      if (state.phase === "idle" || state.phase === "paused") togglePower();
+    });
+    navigator.mediaSession.setActionHandler("pause", () => {
+      if (state.phase === "playing") togglePower();
+    });
+  }
+} catch {
+  /* ignore */
+}

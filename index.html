@@ -110,6 +110,10 @@
         </button>
       </section>
 
+      <button type="button" class="sleep-veil" id="sleep-veil" hidden aria-label="화면 잠깐 켜기">
+        <span>화면을 터치하면 잠깐 켜져요</span>
+      </button>
+
       <div class="settings-root" id="settings" hidden>
         <button type="button" class="settings-backdrop" id="settings-backdrop" aria-label="설정 닫기"></button>
         <div class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -128,6 +132,12 @@
             <button type="button" id="mode-sequence" class="is-on" aria-pressed="true">순차</button>
             <button type="button" id="mode-shuffle" aria-pressed="false">랜덤</button>
           </div>
+          <p class="field-label">수면 중 화면</p>
+          <div class="mode-switch" role="radiogroup" aria-label="수면 중 화면">
+            <button type="button" id="mode-awake" class="is-on" aria-pressed="true">암전 유지</button>
+            <button type="button" id="mode-sleep-off" aria-pressed="false">꺼짐 허용</button>
+          </div>
+          <p class="settings-hint">아이폰은 화면이 꺼지면 유튜브 소리도 멈추는 경우가 많아요. 암전 유지는 화면만 거의 검게 켜 두어 소리가 이어지게 하고, 별 움직임과 영상 화질을 낮춰 발열을 줄입니다.</p>
           <p class="field-label">소리 목록</p>
           <ul class="playlist" id="playlist"></ul>
           <form class="settings-form" id="settings-form">

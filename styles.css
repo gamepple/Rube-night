@@ -132,7 +132,8 @@ p {
     0 0 90px 24px rgb(200 204 212 / 0.12);
 }
 
-.moon.is-dawn {
+.moon.is-dawn,
+.moon.is-still {
   opacity: 0.28;
   animation: none;
 }
@@ -504,6 +505,51 @@ p {
   margin: 0 0 1.25rem;
   font-size: 0.9rem;
   color: var(--color-muted);
+}
+
+.settings-hint {
+  margin: -0.45rem 0 1rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-subtle);
+}
+
+.sleep-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 12;
+  display: grid;
+  place-items: end center;
+  padding-bottom: max(2.25rem, env(safe-area-inset-bottom));
+  border: 0;
+  background: #000;
+  color: rgb(200 204 212 / 0.28);
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+}
+
+.app.is-sleeping .sky-wash {
+  background: #000;
+}
+
+.app.is-sleeping .moon {
+  opacity: 0.1;
+  animation: none;
+  box-shadow: none;
+}
+
+.app.is-sleeping .power-halo {
+  display: none;
+}
+
+.app.is-sleeping .top-bar,
+.app.is-sleeping .greeting,
+.app.is-sleeping .end-btn-slot {
+  opacity: 0;
+}
+
+.app.is-sleeping .power {
+  opacity: 0.22;
 }
 
 .settings-form {
