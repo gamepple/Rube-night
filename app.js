@@ -478,6 +478,8 @@ const el = {
   endBtn: document.getElementById("end-btn"),
   endSlot: document.getElementById("end-slot"),
   installHint: document.getElementById("install-hint"),
+  installSheet: document.getElementById("install"),
+  installBody: document.getElementById("install-body"),
   settings: document.getElementById("settings"),
   videoUrl: document.getElementById("video-url"),
   volume: document.getElementById("volume"),
@@ -737,6 +739,74 @@ async function exitFullscreen() {
   } catch {
     /* already left */
   }
+}
+
+const INSTALL_DISMISS = "rube-install-dismissed";
+let nativeInstallEvent = null;
+
+function detectInstallKind() {
+  const ua = navigator.userAgent || "";
+  const iOS =
+    /iPhone|iPad|iPod/.test(ua) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (iOS) return "ios";
+  if (/Android/i.test(ua)) return "android";
+  return "desktop";
+}
+
+function closeInstall() {
+  sessionStorage.setItem(INSTALL_DISMISS, "1");
+  if (el.installSheet) el.installSheet.hidden = true;
+}
+
+function openInstall() {
+  if (!el.installSheet) return;
+  renderInstallBody();
+  el.installSheet.hidden = false;
+}
+
+function renderInstallBody() {
+  if (!el.installBody) return;
+  const kind = detectInstallKind();
+  if (kind === "ios") {
+    el.installBody.innerHTML = `
+      <ol class="install-steps">
+        <li><span class="install-step-icon">↗</span><p>아래 <em>공유</em> 버튼을 눌러 주세요.</p></li>
+        <li><span class="install-step-icon">＋</span><p><em>홈 화면에 추가</em>를 골라 주세요.</p></li>
+        <li><span class="install-step-icon">○</span><p>새로 생긴 아이콘으로 다시 열어 주세요. 그때부터 화면만 남아요.</p></li>
+      </ol>
+      <button type="button" class="install-done" id="install-done">추가하고 올게요</button>
+    `;
+  } else if (kind === "android") {
+    el.installBody.innerHTML = `
+      <ol class="install-steps">
+        <li><span class="install-step-icon">＋</span><p>아래 버튼을 누르거나, 브라우저 메뉴에서 <em>홈 화면에 추가</em>를 골라 주세요.</p></li>
+        <li><span class="install-step-icon">○</span><p>홈 화면 아이콘으로 열면 주소창과 하단 바가 사라집니다.</p></li>
+      </ol>
+      <button type="button" class="install-done" id="install-done">${
+        nativeInstallEvent ? "앱으로 설치" : "화면 가득 채우기"
+      }</button>
+    `;
+  } else {
+    el.installBody.innerHTML = `
+      <p class="settings-note">이 주소는 휴대폰 브라우저에서 열어, 공유 → 홈 화면에 추가해 주세요. 지금은 전체화면으로 먼저 가릴 수 있어요.</p>
+      <button type="button" class="install-done" id="install-done">화면 가득 채우기</button>
+    `;
+  }
+  document.getElementById("install-done")?.addEventListener("click", async () => {
+    if (kind === "android" && nativeInstallEvent) {
+      const event = nativeInstallEvent;
+      nativeInstallEvent = null;
+      try {
+        await event.prompt();
+      } catch {
+        /* ignore */
+      }
+    } else if (kind !== "ios") {
+      await enterFullscreen();
+    }
+    closeInstall();
+  });
 }
 
 async function requestWakeLock() {
@@ -1112,6 +1182,13 @@ el.sleepVeil?.addEventListener("click", () => {
   renderNight();
   scheduleDim();
 });
+el.installHint?.addEventListener("click", openInstall);
+document.getElementById("install-backdrop")?.addEventListener("click", closeInstall);
+document.getElementById("close-install")?.addEventListener("click", closeInstall);
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  nativeInstallEvent = event;
+});
 el.volume.addEventListener("input", () => {
   state.volume = Number(el.volume.value);
   el.volumeLabel.textContent = `음량 ${state.volume}`;
@@ -1157,4 +1234,7 @@ try {
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./sw.js").catch(() => {});
+}
+if (!isStandalone() && sessionStorage.getItem(INSTALL_DISMISS) !== "1" && detectInstallKind() !== "desktop") {
+  openInstall();
 }

@@ -81,9 +81,9 @@
           </div>
 
           <button type="button" class="end-btn" id="end-btn" hidden>종료하기</button>
-          <p class="install-hint" id="install-hint">
-            주소창이 거슬리면, 공유에서 홈 화면에 추가해 주세요. 그러면 화면만 남아요.
-          </p>
+          <button type="button" class="install-hint" id="install-hint">
+            주소창이 거슬리면, 여기를 눌러 화면만 남기는 방법을 볼게요.
+          </button>
           <div class="end-btn-slot" id="end-slot"></div>
         </div>
       </div>
@@ -168,6 +168,18 @@
             <label class="field-label" for="volume" id="volume-label">음량 80</label>
             <input id="volume" class="field-range" type="range" min="0" max="100" value="80" />
           </form>
+        </div>
+      </div>
+
+      <div class="settings-root" id="install" hidden>
+        <button type="button" class="settings-backdrop" id="install-backdrop" aria-label="안내 닫기"></button>
+        <div class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="install-title">
+          <div class="settings-head">
+            <h2 id="install-title" class="settings-title">화면만 남기기</h2>
+            <button type="button" class="icon-btn" id="close-install" aria-label="닫기">×</button>
+          </div>
+          <p class="settings-copy">주소창과 하단 바는 브라우저가 붙이는 영역이에요. 홈 화면에 두면 사라지고, 잠드는 화면만 남아요.</p>
+          <div id="install-body"></div>
         </div>
       </div>
     </main>
