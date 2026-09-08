@@ -831,7 +831,7 @@ p {
 .morning-quote {
   position: relative;
   margin: 0.5rem 0 0.4rem;
-  max-width: 20rem;
+  max-width: 22rem;
   padding: 0.4rem 0.5rem 0;
 }
 
@@ -848,6 +848,14 @@ p {
   font-size: 1.15rem;
   line-height: 1.6;
   color: var(--color-fg);
+}
+
+.morning-quote footer {
+  margin-top: 0.7rem;
+  font-size: 0.78rem;
+  font-style: normal;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
 }
 
 .back-to-night {
