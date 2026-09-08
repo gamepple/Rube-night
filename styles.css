@@ -448,6 +448,15 @@ p {
   width: min(18rem, 100%);
 }
 
+.install-hint {
+  max-width: 17rem;
+  min-height: 3rem;
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--color-subtle);
+}
+
 .yt-audio-host {
   position: absolute;
   left: 0;
@@ -509,6 +518,13 @@ p {
 
 .settings-hint {
   margin: -0.45rem 0 1rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-subtle);
+}
+
+.settings-note {
+  margin: -0.55rem 0 1.15rem;
   font-size: 0.8rem;
   line-height: 1.5;
   color: var(--color-subtle);

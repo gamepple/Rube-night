@@ -4,6 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#08090c" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="루베의 밤" />
     <meta name="description" content="루베를 위한 밤. 영상 없이, 소리만." />
     <meta property="og:title" content="루베의 밤" />
     <meta property="og:description" content="버튼을 켜면 유튜브 화면 없이 소리만 흘러요." />
@@ -11,6 +15,8 @@
     <meta name="twitter:card" content="summary_large_image" />
     <title>루베의 밤</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -75,6 +81,9 @@
           </div>
 
           <button type="button" class="end-btn" id="end-btn" hidden>종료하기</button>
+          <p class="install-hint" id="install-hint">
+            주소창이 거슬리면, 공유에서 홈 화면에 추가해 주세요. 그러면 화면만 남아요.
+          </p>
           <div class="end-btn-slot" id="end-slot"></div>
         </div>
       </div>
@@ -128,6 +137,7 @@
             </button>
           </div>
           <p class="settings-copy">영상을 여러 개 넣어 두면 하나가 끝나도 다음 소리가 이어져요. 하나만 있으면 처음부터 다시 반복됩니다.</p>
+          <p class="settings-note">주소창과 하단 바는 브라우저가 붙이는 영역이라 탭에서는 완전히 못 없앱니다. 공유에서 홈 화면에 추가하면 화면만 남고, 전원을 켤 때 가능한 기기는 전체화면으로 들어갑니다.</p>
           <p class="field-label">재생 순서</p>
           <div class="mode-switch" role="radiogroup" aria-label="재생 순서">
             <button type="button" id="mode-sequence" class="is-on" aria-pressed="true">순차</button>

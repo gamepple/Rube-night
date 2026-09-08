@@ -477,6 +477,7 @@ const el = {
   playerError: document.getElementById("player-error"),
   endBtn: document.getElementById("end-btn"),
   endSlot: document.getElementById("end-slot"),
+  installHint: document.getElementById("install-hint"),
   settings: document.getElementById("settings"),
   videoUrl: document.getElementById("video-url"),
   volume: document.getElementById("volume"),
@@ -609,7 +610,10 @@ function renderNight() {
   el.playerError.hidden = !state.playerError;
   el.playerError.textContent = state.playerError || "";
   el.endBtn.hidden = !paused;
-  el.endSlot.hidden = paused;
+  el.endSlot.hidden = paused || (!playing && !isStandalone());
+  if (el.installHint) {
+    el.installHint.hidden = playing || paused || isStandalone();
+  }
 }
 
 function renderMorning() {
@@ -696,6 +700,42 @@ function preferTiny() {
     } catch {
       /* ignore */
     }
+  }
+}
+
+function isStandalone() {
+  const nav = navigator;
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.matchMedia("(display-mode: fullscreen)").matches ||
+    window.matchMedia("(display-mode: minimal-ui)").matches ||
+    nav.standalone === true
+  );
+}
+
+async function enterFullscreen() {
+  if (document.fullscreenElement || document.webkitFullscreenElement) return;
+  const root = document.documentElement;
+  const request = root.requestFullscreen || root.webkitRequestFullscreen;
+  if (!request) return;
+  try {
+    await request.call(root, { navigationUI: "hide" });
+  } catch {
+    try {
+      await request.call(root);
+    } catch {
+      /* blocked */
+    }
+  }
+}
+
+async function exitFullscreen() {
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) return;
+  const exit = document.exitFullscreen || document.webkitExitFullscreen;
+  try {
+    await exit?.call(document);
+  } catch {
+    /* already left */
   }
 }
 
@@ -878,6 +918,7 @@ function togglePower() {
     requestWakeLock();
     syncMediaSession();
     scheduleDim();
+    enterFullscreen();
   } else {
     const extra = state.startedAt ? Date.now() - state.startedAt : 0;
     state.phase = "paused";
@@ -887,6 +928,7 @@ function togglePower() {
     dimmed = false;
     window.clearTimeout(dimTimer);
     syncMediaSession();
+    exitFullscreen();
   }
   renderNight();
   applyPlayerPhase();
@@ -902,6 +944,7 @@ function endSession() {
   window.clearTimeout(dimTimer);
   releaseWakeLock();
   syncMediaSession();
+  exitFullscreen();
   applyPlayerPhase();
   renderMorning();
 }
@@ -1110,4 +1153,8 @@ try {
   }
 } catch {
   /* ignore */
+}
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js").catch(() => {});
 }
